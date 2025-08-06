@@ -103,7 +103,8 @@ EOF
 # 4. Tor Dockerfile
 cat > "$DOCKER_PROJECT_DIR/tor/Dockerfile" <<EOF
 FROM dperson/torproxy
-RUN apk add --no-cache curl
+RUN apk add --no-cache curl && \
+    chown -R root:root /var/lib/tor
 EOF
 
 # 5. Tor torrc configuration
