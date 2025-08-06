@@ -14,7 +14,7 @@ set -euo pipefail
 : ${TARGET_GROUP:="www-data"}
 # Branding and URL configuration
 : ${ARCHIVE_TITLE:="Media Archive"}
-: ${BASE_URL:="/media"}
+: ${BASE_URL:="/watt-test"}
 # Tor proxy configuration
 : ${USE_TOR_PROXY:="true"}
 # Torrent tracker list (space-separated for flexibility)
@@ -111,7 +111,7 @@ EOF
 cat > "$DOCKER_PROJECT_DIR/tor/torrc" <<EOF
 SocksPort 0.0.0.0:9050
 HiddenServiceDir /var/lib/tor/hidden_service
-HiddenServicePort 80 127.0.0.1:8080
+HiddenServicePort 80 127.0.0.1:80
 EOF
 
 # 6. Streamer Dockerfile
@@ -122,9 +122,9 @@ RUN apt-get update && apt-get install -y mktorrent nginx supervisor
 
 RUN npm install -g @mapbox/node-pre-gyp webtorrent-hybrid
 
-RUN mkdir -p /var/www/html/torrents ${LOG_DIR} && \
-    chown -R ${TARGET_USER}:${TARGET_GROUP} /var/www/html/torrents ${LOG_DIR} && \
-    chmod -R u+rwX /var/www/html/torrents ${LOG_DIR}
+RUN mkdir -p /var/www/html/torrents ${LOG_DIR} /run/nginx /var/lib/nginx/body && \
+    chown -R ${TARGET_USER}:${TARGET_GROUP} /var/www/html/torrents ${LOG_DIR} /run/nginx /var/lib/nginx/body && \
+    chmod -R u+rwX /var/www/html/torrents ${LOG_DIR} /run/nginx /var/lib/nginx/body
 
 COPY public /var/www/html
 COPY nginx/nginx.conf /etc/nginx/nginx.conf
@@ -181,25 +181,31 @@ http {
 }
 EOF
 
-# 8. supervisord.conf
+# 8. supervisord.conf (Explicitly overwrite to prevent stale file issues)
+rm -f "$DOCKER_PROJECT_DIR/streamer/supervisord.conf"
 cat > "$DOCKER_PROJECT_DIR/streamer/supervisord.conf" <<EOF
 [supervisord]
 nodaemon=true
 logfile=${LOG_DIR}/supervisord.log
 logfile_maxbytes=50MB
 logfile_backups=10
+pidfile=${LOG_DIR}/supervisord.pid
 
 [program:nginx]
 command=nginx -g "daemon off;"
 autorestart=true
+startsecs=10
+startretries=5
 stdout_logfile=${LOG_DIR}/nginx_stdout.log
 stdout_logfile_maxbytes=10MB
 stderr_logfile=${LOG_DIR}/nginx_stderr.log
 stderr_logfile_maxbytes=10MB
 
 [program:webtorrent]
-command=/bin/bash -c "if ls /media/mp3s/*.mp3 >/dev/null 2>&1; then webtorrent-hybrid seed /media/mp3s/*.mp3 --no-quit --tracker; else echo 'No MP3 files found, skipping seeding'; sleep infinity; fi"
+command=/bin/bash -c "if ls /media/mp3s/*.mp3 >/dev/null 2>&1; then webtorrent-hybrid seed /media/mp3s/*.mp3 --no-quit --verbose >${LOG_DIR}/webtorrent_verbose.log 2>&1; else echo 'No MP3 files found, skipping seeding' >>${LOG_DIR}/webtorrent_verbose.log; sleep infinity; fi"
 autorestart=true
+startsecs=10
+startretries=5
 stdout_logfile=${LOG_DIR}/webtorrent_stdout.log
 stdout_logfile_maxbytes=10MB
 stderr_logfile=${LOG_DIR}/webtorrent_stderr.log
@@ -329,7 +335,7 @@ if [ "${USE_TOR_PROXY}" == "true" ]; then
 fi
 echo "📝 Ensure MP3 files exist in $MP3_DIR"
 echo "📜 Logs are written to $LOG_DIR"
-echo "🌐 Configure host Nginx to proxy ${BASE_URL}/stream and serve ${BASE_URL}/torrents and ${BASE_URL}"
+echo "🌐 Access via https://zchg.org${BASE_URL}/ for the archive page"
 echo "📋 To customize, set environment variables or create a config.sh file with:"
 echo "   MP3_DIR, TORRENT_DIR, SCRIPTS_DIR, ARCHIVE_ROOT, DOCKER_PROJECT_DIR, LOG_DIR"
 echo "   TARGET_USER, TARGET_GROUP, ARCHIVE_TITLE, BASE_URL, USE_TOR_PROXY, TRACKERS"
