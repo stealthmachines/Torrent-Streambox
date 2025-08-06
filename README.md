@@ -3,7 +3,7 @@ A Self-Hosted MP3 Archive + WebTorrent Streaming Server
 
 Mirror: https://zchg.org/t/torrent-streambox-a-self-hosted-mp3-archive-webtorrent-streaming-server/782
 
-## Version 0.0.3 (ALPHA, NO PROMISES)
+## Version 0.0.4 (ALPHA, NO PROMISES)
 
 ## 🧩 What This Is: A Self-Contained Media Archive and Streaming Torrent Server
 
